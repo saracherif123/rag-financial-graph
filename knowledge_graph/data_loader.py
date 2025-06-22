@@ -2,6 +2,9 @@ import os
 import json
 from neo4j import GraphDatabase
 from dotenv import load_dotenv
+import time
+import pandas as pd
+import yfinance as yf
 
 # Load environment variables from .env
 load_dotenv()
