@@ -1,6 +1,6 @@
 # Financial RAG with LangChain, Neo4j, and Gemini
 
-A minimal Retrieval-Augmented Generation (RAG) pipeline for financial data using LangChain, Neo4j, HuggingFace embeddings, and Gemini (Google Generative AI).
+A Retrieval-Augmented Generation (RAG) pipeline for financial data using LangChain, Neo4j, and Gemini (Google Generative AI).
 
 ## Quick Start
 
@@ -42,25 +42,22 @@ python run_financial_graph.py
 
 ## Example Questions
 - What does Microsoft do?
-- What is the market capitalization of Amazon?
 - Which companies operate in the technology sector?
-
-## Utility
-- `test_gemini_key.py`: Check which Gemini models your API key can access.
 
 ## Notes
 - Do **not** commit your `venv/` or `.env` files.
 - Data loading to Neo4j is handled by `knowledge_graph/data_loader.py`.
-- All graph and embedding logic is handled by LangChain integrations.
+- All retrieval and LLM logic is handled by LangChain integrations with Gemini and Neo4j.
 
 ## Project Structure
 ```
 rag-financial-graph/
-├── run_financial_graph.py   # Main script
+├── RAG_pipeline.py   # Main script (RAG pipeline)
 ├── requirements.txt        # Dependencies
 ├── .env                    # Your secrets (not tracked)
 ├── .gitignore              # Excludes venv, etc.
-├── test_gemini_key.py      # Gemini model checker
 ├── knowledge_graph/        # Data tools and loader
+│   ├── data_downloader.py
+│   └── data_loader.py
 └── data/                   # Data files
 ```

@@ -1,9 +1,7 @@
 langchain
-langchain-huggingface
 langchain-neo4j
 langchain-google-genai
-openai
-yfinance
+neo4j
+python-dotenv
 pandas
-numpy
-python-dotenv 
+yfinance 

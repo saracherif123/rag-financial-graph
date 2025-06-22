@@ -45,9 +45,9 @@ class FinancialDataDownloader:
                 stock = yf.Ticker(symbol)
                 hist = stock.history(period=period, interval="1d")
                 if not hist.empty:
-                    hist['Symbol'] = symbol
-                    data = pd.concat([data, hist])
-                    print(f"Downloaded data for {symbol}")
+                hist['Symbol'] = symbol
+                data = pd.concat([data, hist])
+                print(f"Downloaded data for {symbol}")
                 else:
                     print(f"No data available for {symbol}")
             except Exception as e:
@@ -116,25 +116,25 @@ class FinancialDataDownloader:
                 
                 # Get income statement
                 try:
-                    income_stmt = stock.income_stmt
+                income_stmt = stock.income_stmt
                     if income_stmt is not None and not income_stmt.empty:
-                        for date in income_stmt.columns:
-                            stmt = income_stmt[date].to_dict()
-                            stmt['symbol'] = symbol
-                            stmt['date'] = date.strftime('%Y-%m-%d')
-                            statements['income_statements'].append(stmt)
+                    for date in income_stmt.columns:
+                        stmt = income_stmt[date].to_dict()
+                        stmt['symbol'] = symbol
+                        stmt['date'] = date.strftime('%Y-%m-%d')
+                        statements['income_statements'].append(stmt)
                 except Exception as e:
                     print(f"Error getting income statement for {symbol}: {e}")
                 
                 # Get balance sheet
                 try:
-                    balance = stock.balance_sheet
+                balance = stock.balance_sheet
                     if balance is not None and not balance.empty:
-                        for date in balance.columns:
-                            stmt = balance[date].to_dict()
-                            stmt['symbol'] = symbol
-                            stmt['date'] = date.strftime('%Y-%m-%d')
-                            statements['balance_sheets'].append(stmt)
+                    for date in balance.columns:
+                        stmt = balance[date].to_dict()
+                        stmt['symbol'] = symbol
+                        stmt['date'] = date.strftime('%Y-%m-%d')
+                        statements['balance_sheets'].append(stmt)
                 except Exception as e:
                     print(f"Error getting balance sheet for {symbol}: {e}")
                 
@@ -142,11 +142,11 @@ class FinancialDataDownloader:
                 try:
                     cash_flow = stock.cashflow
                     if cash_flow is not None and not cash_flow.empty:
-                        for date in cash_flow.columns:
-                            stmt = cash_flow[date].to_dict()
-                            stmt['symbol'] = symbol
-                            stmt['date'] = date.strftime('%Y-%m-%d')
-                            statements['cash_flows'].append(stmt)
+                    for date in cash_flow.columns:
+                        stmt = cash_flow[date].to_dict()
+                        stmt['symbol'] = symbol
+                        stmt['date'] = date.strftime('%Y-%m-%d')
+                        statements['cash_flows'].append(stmt)
                 except Exception as e:
                     print(f"Error getting cash flow for {symbol}: {e}")
                 
@@ -163,13 +163,13 @@ class FinancialDataDownloader:
             output_dir: Directory to save the data files
         """
         os.makedirs(output_dir, exist_ok=True)
-
+        
         # Download and save stock data
         print("\nDownloading stock price data...")
         try:
-            stock_data = self.download_stock_data()
+        stock_data = self.download_stock_data()
             if not stock_data.empty:
-                stock_data.to_csv(os.path.join(output_dir, "stock_prices.csv"))
+        stock_data.to_csv(os.path.join(output_dir, "stock_prices.csv"))
                 print(f"Saved stock prices for {len(stock_data['Symbol'].unique())} companies")
             else:
                 raise Exception("No stock price data was downloaded")
@@ -178,14 +178,14 @@ class FinancialDataDownloader:
             stock_file = os.path.join(output_dir, "stock_prices.csv")
             if not os.path.exists(stock_file):
                 raise RuntimeError("No stock price data available.")
-
+        
         # Get and save company info
         print("\nDownloading company information...")
         try:
-            company_info = self.get_company_info()
+        company_info = self.get_company_info()
             if company_info:
-                with open(os.path.join(output_dir, "company_info.json"), 'w') as f:
-                    json.dump(company_info, f, indent=2)
+        with open(os.path.join(output_dir, "company_info.json"), 'w') as f:
+            json.dump(company_info, f, indent=2)
                 print(f"Saved information for {len(company_info)} companies")
             else:
                 raise Exception("No company information was downloaded")
@@ -194,15 +194,15 @@ class FinancialDataDownloader:
             info_file = os.path.join(output_dir, "company_info.json")
             if not os.path.exists(info_file):
                 raise RuntimeError("No company info available.")
-
+        
         # Get and save financial statements
         print("\nDownloading financial statements...")
         try:
-            statements = self.get_financial_statements()
-            for stmt_type, data in statements.items():
+        statements = self.get_financial_statements()
+        for stmt_type, data in statements.items():
                 if data:
-                    with open(os.path.join(output_dir, f"{stmt_type}.json"), 'w') as f:
-                        json.dump(data, f, indent=2)
+            with open(os.path.join(output_dir, f"{stmt_type}.json"), 'w') as f:
+                json.dump(data, f, indent=2)
                     print(f"Saved {len(data)} {stmt_type}")
                 else:
                     print(f"No data available for {stmt_type}")
