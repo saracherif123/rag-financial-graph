@@ -8,9 +8,11 @@ A robust Retrieval-Augmented Generation (RAG) pipeline for financial data using:
 - HuggingFace Inference API for text generation (free tier)
 """
 
-import os
 import sys
-from typing import List, Dict, Any
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import json
+from typing import List, Dict, Any, Tuple
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 from langchain_neo4j import Neo4jVector
@@ -21,6 +23,21 @@ from langchain.schema import Document
 from langchain.schema.retriever import BaseRetriever
 import re
 from pydantic import Field, SkipValidation
+from knowledge_graph.data_loader import (
+    load_companies_to_neo4j,
+    load_json_statements_to_neo4j,
+    load_stock_prices_to_neo4j,
+    COMPANY_FILE,
+    BALANCE_SHEET_FILE,
+    INCOME_STATEMENT_FILE,
+    CASH_FLOW_FILE,
+    STOCK_PRICES_FILE,
+    CREATE_BALANCE_SHEET_QUERY,
+    CREATE_INCOME_STATEMENT_QUERY,
+    CREATE_CASH_FLOW_QUERY
+)
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import FAISS
 
 # Load environment variables
 load_dotenv('.env', override=True)
@@ -30,8 +47,10 @@ class FinancialRAGSystem:
         """Initialize the Financial RAG System"""
         self.setup_environment()
         self.setup_neo4j_connection()
-        self.setup_vectorstore()
+        self.load_all_data_to_neo4j()
+        self.setup_faiss_vectorstore()
         self.setup_llm()
+        self.load_company_name_symbol_mapping()
     
     def setup_environment(self):
         """Setup and validate environment variables"""
@@ -40,6 +59,8 @@ class FinancialRAGSystem:
         self.neo4j_password = os.getenv('NEO4J_PASSWORD')
         self.neo4j_database = os.getenv('NEO4J_DATABASE', 'neo4j')
         self.google_api_key = os.getenv('GOOGLE_API_KEY')
+        # Use a well-supported model for embeddings
+        self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         
         if not all([self.neo4j_uri, self.neo4j_username, self.neo4j_password]):
             raise ValueError("Missing Neo4j credentials in .env file")
@@ -61,75 +82,48 @@ class FinancialRAGSystem:
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Neo4j: {e}")
     
-    def create_vector_index_if_needed(self):
-        """Create vector index in Neo4j if it doesn't exist"""
+    def setup_faiss_vectorstore(self):
+        """Extract all data from Neo4j, create Documents, and build a FAISS index for semantic search."""
         try:
+            docs = []
+            # Companies
             with self.neo4j_driver.session(database=self.neo4j_database) as session:
-                # Check if index exists
-                result = session.run("""
-                    SHOW INDEXES 
-                    WHERE name = 'company-embeddings'
-                """)
-                if not result.data():
-                    print("Creating vector index...")
-                    # Create vector index
-                    session.run("""
-                        CREATE VECTOR INDEX company-embeddings
-                        FOR (c:Company) ON (c.embedding)
-                        OPTIONS {indexConfig: {
-                            `vector.dimensions`: 384,
-                            `vector.similarity_function`: 'cosine'
-                        }}
-                    """)
-                    print("✅ Vector index created")
-                else:
-                    print("✅ Vector index already exists")
+                result = session.run("MATCH (c:Company) RETURN c.symbol AS symbol, c.name AS name, c.description AS description")
+                for record in result:
+                    content = f"Company: {record['name']} ({record['symbol']})\n{record['description']}"
+                    docs.append(Document(page_content=content, metadata={"type": "Company", "symbol": record['symbol']}))
+                # Balance Sheets
+                result = session.run("MATCH (b:BalanceSheet) RETURN b.symbol AS symbol, b.date AS date, b AS props")
+                for record in result:
+                    props = record['props']
+                    summary = f"BalanceSheet for {props.get('symbol', '')} on {props.get('date', '')}: " + ", ".join([f"{k}: {v}" for k, v in props.items() if k not in ['symbol', 'date', 'embedding']])
+                    docs.append(Document(page_content=summary, metadata={"type": "BalanceSheet", "symbol": props.get('symbol', ''), "date": props.get('date', '')}))
+                # Income Statements
+                result = session.run("MATCH (i:IncomeStatement) RETURN i.symbol AS symbol, i.date AS date, i AS props")
+                for record in result:
+                    props = record['props']
+                    summary = f"IncomeStatement for {props.get('symbol', '')} on {props.get('date', '')}: " + ", ".join([f"{k}: {v}" for k, v in props.items() if k not in ['symbol', 'date', 'embedding']])
+                    docs.append(Document(page_content=summary, metadata={"type": "IncomeStatement", "symbol": props.get('symbol', ''), "date": props.get('date', '')}))
+                # Cash Flows
+                result = session.run("MATCH (f:CashFlow) RETURN f.symbol AS symbol, f.date AS date, f AS props")
+                for record in result:
+                    props = record['props']
+                    summary = f"CashFlow for {props.get('symbol', '')} on {props.get('date', '')}: " + ", ".join([f"{k}: {v}" for k, v in props.items() if k not in ['symbol', 'date', 'embedding']])
+                    docs.append(Document(page_content=summary, metadata={"type": "CashFlow", "symbol": props.get('symbol', ''), "date": props.get('date', '')}))
+                # Stock Prices
+                result = session.run("MATCH (s:StockPrice) RETURN s.Symbol AS symbol, s.Date AS date, s AS props")
+                for record in result:
+                    props = record['props']
+                    summary = f"StockPrice for {props.get('Symbol', '')} on {props.get('Date', '')}: " + ", ".join([f"{k}: {v}" for k, v in props.items() if k not in ['Symbol', 'Date', 'embedding']])
+                    docs.append(Document(page_content=summary, metadata={"type": "StockPrice", "symbol": props.get('Symbol', ''), "date": props.get('Date', '')}))
+            self.faiss_index = FAISS.from_documents(docs, self.embeddings)
+            print(f"✅ FAISS vector store setup complete with {len(docs)} documents.")
+        except ImportError:
+            print("❌ faiss-cpu is not installed. Please run 'pip install faiss-cpu' to enable semantic search.")
+            self.faiss_index = None
         except Exception as e:
-            print(f"Warning: Could not create vector index: {e}")
-            print("Continuing without vector index...")
-    
-    def generate_embeddings_for_companies(self):
-        """Generate embeddings for company descriptions and store in Neo4j"""
-        try:
-            with self.neo4j_driver.session(database=self.neo4j_database) as session:
-                # Get companies without embeddings
-                result = session.run("""
-                    MATCH (c:Company)
-                    WHERE c.embedding IS NULL
-                    RETURN c.symbol, c.description
-                """)
-                
-                companies = result.data()
-                if not companies:
-                    print("✅ All companies already have embeddings")
-                    return
-                
-                print(f"Generating embeddings for {len(companies)} companies...")
-                
-                for company in companies:
-                    if company['c.description']:
-                        embedding = self.embeddings.embed_query(company['c.description'])
-                        session.run("""
-                            MATCH (c:Company {symbol: $symbol})
-                            SET c.embedding = $embedding
-                        """, symbol=company['c.symbol'], embedding=embedding)
-                
-                print("✅ Embeddings generated and stored")
-        except Exception as e:
-            print(f"Warning: Could not generate embeddings: {e}")
-    
-    def setup_vectorstore(self):
-        """Setup Neo4j vector store"""
-        try:
-            # Create index and generate embeddings first
-            self.create_vector_index_if_needed()
-            self.retriever = BasicRetriever(neo4j_driver=self.neo4j_driver, database=self.neo4j_database)
-            print("✅ Basic keyword retriever setup complete")
-            
-        except Exception as e:
-            print(f"Warning: Vector store setup failed: {e}")
-            print("Falling back to basic retrieval...")
-            self.retriever = BasicRetriever(neo4j_driver=self.neo4j_driver, database=self.neo4j_database)
+            print(f"❌ FAISS vector store setup failed: {e}")
+            self.faiss_index = None
     
     def setup_llm(self):
         if self.google_api_key:
@@ -148,86 +142,79 @@ class FinancialRAGSystem:
             self.llm = None
             print("⚠️  No Gemini LLM available (missing GOOGLE_API_KEY)")
     
+    def load_company_name_symbol_mapping(self):
+        """Load company name to symbol mapping from company_info.json"""
+        self.company_name_to_symbol = {}
+        self.symbol_to_company_name = {}
+        company_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'financial', 'company_info.json')
+        if os.path.exists(company_file):
+            with open(company_file, 'r') as f:
+                companies = json.load(f)
+            for company in companies:
+                name = company.get('name', '').lower()
+                symbol = company.get('symbol', '').upper()
+                if name and symbol:
+                    self.company_name_to_symbol[name] = symbol
+                    self.symbol_to_company_name[symbol] = name
+
+    def get_symbol_from_question(self, question: str) -> str:
+        """Try to find a company name in the question and return its symbol if found."""
+        question_lower = question.lower()
+        for name, symbol in self.company_name_to_symbol.items():
+            if name in question_lower:
+                return symbol
+        return None
+
+    def replace_company_name_with_symbol(self, question: str) -> str:
+        """Replace company name in the question with its symbol if found."""
+        for name, symbol in self.company_name_to_symbol.items():
+            pattern = re.compile(re.escape(name), re.IGNORECASE)
+            if pattern.search(question):
+                question = pattern.sub(symbol, question)
+        return question
+
     def ask_question(self, question: str) -> Dict[str, Any]:
-        """Ask a question and get response with context"""
-        print(f"🔍 Searching for: {question}")
-        
-        # Get relevant documents using our working retrieval system
+        """Ask a question and get response with context using FAISS semantic search. Preprocess to map company names to symbols."""
+        # Preprocess question to replace company names with symbols
+        processed_question = self.replace_company_name_with_symbol(question)
+        print(f"🔍 Searching for: {processed_question}")
+        if not self.faiss_index:
+            print("❌ FAISS index is not available. Returning no results.")
+            return {"result": "Semantic search is not available. Please check your FAISS setup.", "source_documents": []}
         try:
-            docs = self.retriever.get_relevant_documents(question)
+            docs = self.faiss_index.similarity_search(processed_question, k=5)
             print(f"📚 Found {len(docs)} relevant documents")
         except Exception as e:
             print(f"❌ Retrieval error: {e}")
-            return {
-                "result": f"Error during retrieval: {e}",
-                "source_documents": []
-            }
-        
+            return {"result": f"Error during retrieval: {e}", "source_documents": []}
         if not self.llm:
             # No LLM available - return documents directly
             if docs:
                 summary = "Based on the available financial data:\n\n"
                 for i, doc in enumerate(docs, 1):
                     content = doc.page_content
-                    if "Company:" in content:
-                        company_info = content.split("\n")[0]
-                        description = content.split("\n", 1)[1] if "\n" in content else ""
-                        summary += f"{i}. {company_info}\n{description[:300]}...\n\n"
-                return {
-                    "result": summary,
-                    "source_documents": docs
-                }
+                    summary += f"{i}. {content[:300]}...\n\n"
+                return {"result": summary, "source_documents": docs}
             else:
-                return {
-                    "result": "No relevant information found. Try asking about specific companies like Apple, Microsoft, Amazon, etc.",
-                    "source_documents": []
-                }
-        
+                return {"result": "No relevant information found.", "source_documents": []}
         try:
-            # Use LLM to generate response
             if docs:
-                # Create context from documents
                 context = "\n\n".join([doc.page_content for doc in docs])
-                prompt = f"""You are a financial assistant. Answer the question based on the provided context.
-
-Context:
-{context}
-
-Question: {question}
-
-Answer:"""
-                
-                # Call LLM
+                prompt = f"""You are a financial assistant. Answer the question based on the provided context.\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:"""
                 response = self.llm.invoke(prompt)
-                return {
-                    "result": response,
-                    "source_documents": docs
-                }
+                return {"result": response, "source_documents": docs}
             else:
-                return {
-                    "result": "No relevant information found in the knowledge graph.",
-                    "source_documents": []
-                }
+                return {"result": "No relevant information found in the knowledge base.", "source_documents": []}
         except Exception as e:
             print(f"⚠️  LLM error: {e}")
-            # Fallback to simple summary
             if docs:
                 summary = "Based on the available financial data:\n\n"
                 for i, doc in enumerate(docs, 1):
                     content = doc.page_content
-                    if "Company:" in content:
-                        company_info = content.split("\n")[0]
-                        description = content.split("\n", 1)[1] if "\n" in content else ""
-                        summary += f"{i}. {company_info}\n{description[:300]}...\n\n"
-                return {
-                    "result": summary,
-                    "source_documents": docs
-                }
+                    summary += f"{i}. {content[:300]}...\n\n"
+                return {"result": summary, "source_documents": docs}
             else:
-                return {
-                    "result": "No relevant information found. Try asking about specific companies like Apple, Microsoft, Amazon, etc.",
-                    "source_documents": []
-                }
+                return {"result": "No relevant information found.", "source_documents": []}
     
     def run_interactive(self):
         """Run interactive Q&A session"""
@@ -304,45 +291,26 @@ Answer:"""
         """Clean up resources"""
         if hasattr(self, 'neo4j_driver'):
             self.neo4j_driver.close()
-
-class BasicRetriever(BaseRetriever):
-    """Custom retriever that uses keyword-based search"""
     
-    neo4j_driver: any = Field(exclude=True)
-    database: str
-    stopwords: set = Field(default_factory=lambda: {
-        "what", "does", "do", "the", "and", "or", "is", "a", "an", "of", "in", "on", "for", "to", "with", "by", "at", "as", "from", "that", "this", "it"
-    }, exclude=True)
-    
-    def _get_relevant_documents(self, query: str) -> List[Document]:
-        """Get documents relevant to the query"""
-        clean_query = re.sub(r'[^\w\s]', '', query.lower())
-        keywords = [w for w in clean_query.split() if len(w) > 2 and w not in self.stopwords]
-        print(f"DEBUG: Extracted keywords: {keywords}")
-        with self.neo4j_driver.session(database=self.database) as session:
-            docs = []
-            seen = set()
-            for word in keywords:
-                print(f"DEBUG: Searching for keyword: {word}")
-                result = session.run("""
-                    MATCH (c:Company)
-                    WHERE toLower(c.description) CONTAINS $word
-                       OR toLower(c.name) CONTAINS $word
-                       OR toLower(c.symbol) CONTAINS $word
-                    RETURN c.symbol, c.name, c.description
-                    LIMIT 1
-                """, word=word)
-                for record in result:
-                    key = record['c.symbol']
-                    if key not in seen:
-                        seen.add(key)
-                        content = f"Company: {record['c.name']} ({record['c.symbol']})\n{record['c.description']}"
-                        docs.append(Document(page_content=content))
-            return docs
-    
-    async def _aget_relevant_documents(self, query: str) -> List[Document]:
-        """Async version - just call the sync version for now"""
-        return self._get_relevant_documents(query)
+    def load_all_data_to_neo4j(self):
+        """Load all available data into Neo4j from the data/financial directory"""
+        try:
+            # Load companies
+            if os.path.exists(COMPANY_FILE):
+                with open(COMPANY_FILE, 'r') as f:
+                    companies = json.load(f)
+                load_companies_to_neo4j(self.neo4j_driver, companies)
+            # Load balance sheets
+            load_json_statements_to_neo4j(self.neo4j_driver, BALANCE_SHEET_FILE, CREATE_BALANCE_SHEET_QUERY, 'balance sheet')
+            # Load income statements
+            load_json_statements_to_neo4j(self.neo4j_driver, INCOME_STATEMENT_FILE, CREATE_INCOME_STATEMENT_QUERY, 'income statement')
+            # Load cash flows
+            load_json_statements_to_neo4j(self.neo4j_driver, CASH_FLOW_FILE, CREATE_CASH_FLOW_QUERY, 'cash flow')
+            # Load stock prices
+            load_stock_prices_to_neo4j(self.neo4j_driver, STOCK_PRICES_FILE)
+            print("✅ All available data loaded into Neo4j.")
+        except Exception as e:
+            print(f"⚠️  Data loading error: {e}")
 
 def main():
     """Main function to run the Financial RAG System"""
