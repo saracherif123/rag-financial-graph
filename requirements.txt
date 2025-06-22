@@ -4,4 +4,6 @@ langchain-google-genai
 neo4j
 python-dotenv
 pandas
-yfinance 
+yfinance
+openai
+streamlit
