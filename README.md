@@ -52,12 +52,16 @@ python run_financial_graph.py
 ## Project Structure
 ```
 rag-financial-graph/
-├── RAG_pipeline.py   # Main script (RAG pipeline)
-├── requirements.txt        # Dependencies
-├── .env                    # Your secrets (not tracked)
-├── .gitignore              # Excludes venv, etc.
-├── knowledge_graph/        # Data tools and loader
+├── app/
+│   ├── __init__.py
+│   ├── RAG_pipeline.py         # Main RAG pipeline
+│   └── streamlit_app.py        # Streamlit web app
+├── knowledge_graph/
 │   ├── data_downloader.py
 │   └── data_loader.py
-└── data/                   # Data files
+├── data/                      # Data files
+├── requirements.txt           # Dependencies
+├── .env                       # Your secrets (not tracked)
+├── .gitignore                 # Excludes venv, etc.
+├── README.md
 ```
