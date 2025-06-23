@@ -6,7 +6,7 @@ A Retrieval-Augmented Generation (RAG) pipeline for financial data using LangCha
 
 ### 1. Clone and Setup
 ```bash
-git clone https://github.com/yourusername/rag-financial-graph.git
+git clone git@github.com:saracherif123/rag-financial-graph.git
 cd rag-financial-graph
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -27,11 +27,11 @@ GOOGLE_API_KEY=your_gemini_api_key
 - Ensure your Neo4j instance is running.
 - Download financial data:
   ```bash
-  python knowledge_graph/data_downloader.py
+  python graph/data_downloader.py
   ```
 - Load company data into Neo4j:
   ```bash
-  python knowledge_graph/data_loader.py
+  python graph/data_loader.py
   ```
 
 ### 4. Run the Main Script
@@ -46,22 +46,21 @@ python run_financial_graph.py
 
 ## Notes
 - Do **not** commit your `venv/` or `.env` files.
-- Data loading to Neo4j is handled by `knowledge_graph/data_loader.py`.
+- Data loading to Neo4j is handled by `graph/data_loader.py`.
 - All retrieval and LLM logic is handled by LangChain integrations with Gemini and Neo4j.
 
 ## Project Structure
 ```
 rag-financial-graph/
 ├── app/
-│   ├── __init__.py
 │   ├── RAG_pipeline.py         # Main RAG pipeline
 │   └── streamlit_app.py        # Streamlit web app
-├── knowledge_graph/
+├── graph/
 │   ├── data_downloader.py
 │   └── data_loader.py
+    └── convert_json_to_csv.py
 ├── data/                      # Data files
-├── requirements.txt           # Dependencies
-├── .env                       # Your secrets (not tracked)
+├── requirements.txt           # Dependencies                      # Your secrets (not tracked)
 ├── .gitignore                 # Excludes venv, etc.
 ├── README.md
 ```
