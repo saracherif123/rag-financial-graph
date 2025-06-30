@@ -44,6 +44,7 @@ python run_financial_graph.py
 - What does Microsoft do?
 - What is the net income of Microsoft Corporation in 2024?
 - Which companies operate in the technology sector?
+- What other companies operate in the same sector as Microsoft?
 
 ## Notes
 - Do **not** commit your `venv/` or `.env` files.
