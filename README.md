@@ -42,6 +42,7 @@ python run_financial_graph.py
 
 ## Example Questions
 - What does Microsoft do?
+- What is the net income of Microsoft Corporation in 2024?
 - Which companies operate in the technology sector?
 
 ## Notes
