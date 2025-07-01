@@ -23,7 +23,7 @@ from langchain.schema import Document
 from langchain.schema.retriever import BaseRetriever
 import re
 from pydantic import Field, SkipValidation
-from knowledge_graph.data_loader import (
+from graph.data_loader import (
     load_companies_to_neo4j,
     load_json_statements_to_neo4j,
     load_stock_prices_to_neo4j,
