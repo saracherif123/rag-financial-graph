@@ -23,10 +23,8 @@ from langchain.schema import Document
 from langchain.schema.retriever import BaseRetriever
 import re
 from pydantic import Field, SkipValidation
-from knowledge_graph.data_loader import (
+from graph.data_loader import (
     load_companies_to_neo4j,
-    load_json_statements_to_neo4j,
-    load_stock_prices_to_neo4j,
     COMPANY_FILE,
     BALANCE_SHEET_FILE,
     INCOME_STATEMENT_FILE,
@@ -301,13 +299,13 @@ class FinancialRAGSystem:
                     companies = json.load(f)
                 load_companies_to_neo4j(self.neo4j_driver, companies)
             # Load balance sheets
-            load_json_statements_to_neo4j(self.neo4j_driver, BALANCE_SHEET_FILE, CREATE_BALANCE_SHEET_QUERY, 'balance sheet')
+            # load_json_statements_to_neo4j(self.neo4j_driver, BALANCE_SHEET_FILE, CREATE_BALANCE_SHEET_QUERY, 'balance sheet')
             # Load income statements
-            load_json_statements_to_neo4j(self.neo4j_driver, INCOME_STATEMENT_FILE, CREATE_INCOME_STATEMENT_QUERY, 'income statement')
+            # load_json_statements_to_neo4j(self.neo4j_driver, INCOME_STATEMENT_FILE, CREATE_INCOME_STATEMENT_QUERY, 'income statement')
             # Load cash flows
-            load_json_statements_to_neo4j(self.neo4j_driver, CASH_FLOW_FILE, CREATE_CASH_FLOW_QUERY, 'cash flow')
+            # load_json_statements_to_neo4j(self.neo4j_driver, CASH_FLOW_FILE, CREATE_CASH_FLOW_QUERY, 'cash flow')
             # Load stock prices
-            load_stock_prices_to_neo4j(self.neo4j_driver, STOCK_PRICES_FILE)
+            # load_stock_prices_to_neo4j(self.neo4j_driver, STOCK_PRICES_FILE)
             print("✅ All available data loaded into Neo4j.")
         except Exception as e:
             print(f"⚠️  Data loading error: {e}")
