@@ -66,3 +66,8 @@ rag-financial-graph/
 ├── .gitignore                 # Excludes venv, etc.
 ├── README.md
 ```
+## Research Paper
+This project is based on research conducted for the Thirteenth European Big Data Management & Analytics Summer School (eBISS 2025) . For detailed information about the methodology, implementation, and results, please refer to:
+
+📄 **[KG - RAG Paper - Sara Saad_Stephanie Gomes.pdf](https://www.researchgate.net/publication/393193258_Graph-Enhanced_RAG_A_Survey_of_Methods_Architectures_and_Performance/references)**
+
